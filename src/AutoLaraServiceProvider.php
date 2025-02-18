@@ -3,25 +3,26 @@
 namespace Mdarmancse\AutoLara;
 
 use Illuminate\Support\ServiceProvider;
-use Mdarmancse\AutoLara\Commands\GenerateCrudCommand;
 
 class AutoLaraServiceProvider extends ServiceProvider
 {
     public function register()
     {
-        $this->commands([
-            GenerateCrudCommand::class,
-        ]);
+        // Register bindings
+        $this->app->bind(
+            \Mdarmancse\AutoLara\Repositories\BaseRepositoryInterface::class,
+            \Mdarmancse\AutoLara\Repositories\BaseRepository::class
+        );
     }
 
     public function boot()
     {
-        // Load package routes
-        $this->loadRoutesFrom(__DIR__ . '/../src/routes/web.php');
-
-        // Publish configuration file
+        // Publish Config
         $this->publishes([
             __DIR__.'/../config/autolara.php' => config_path('autolara.php'),
         ], 'config');
+
+        // Load Migrations
+        $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
     }
 }

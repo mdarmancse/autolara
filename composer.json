@@ -1,23 +1,23 @@
 {
   "name": "mdarmancse/autolara",
-  "description": "An auto CRUD generator for Laravel",
+  "description": "Auto CRUD generation with Repository Pattern",
   "type": "library",
-  "keywords": ["laravel", "crud", "generator", "scaffold"],
   "license": "MIT",
+  "autoload": {
+    "psr-4": {
+      "Mdarmancse\\AutoLara\\": "src/"
+    }
+  },
   "authors": [
     {
       "name": "Md Arman",
       "email": "mdarmancse@gmail.com"
     }
   ],
+  "minimum-stability": "stable",
   "require": {
     "php": ">=8.0",
-    "laravel/framework": ">=9.0"
-  },
-  "autoload": {
-    "psr-4": {
-      "Mdarmancse\\AutoLara\\": "src/"
-    }
+    "illuminate/support": "^11.0"
   },
   "extra": {
     "laravel": {
@@ -25,7 +25,5 @@
         "Mdarmancse\\AutoLara\\AutoLaraServiceProvider"
       ]
     }
-  },
-  "minimum-stability": "dev",
-  "prefer-stable": true
+  }
 }
