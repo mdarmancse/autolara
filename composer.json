@@ -1,13 +1,9 @@
 {
   "name": "mdarmancse/autolara",
-  "description": "A Laravel package for auto-generating CRUD operations.",
+  "description": "An auto CRUD generator for Laravel",
   "type": "library",
+  "keywords": ["laravel", "crud", "generator", "scaffold"],
   "license": "MIT",
-  "autoload": {
-    "psr-4": {
-      "Mdarmancse\\AutoLara\\": "src/"
-    }
-  },
   "authors": [
     {
       "name": "Md Arman",
@@ -16,19 +12,20 @@
   ],
   "require": {
     "php": ">=8.0",
-    "illuminate/support": "^11.0"
+    "laravel/framework": ">=9.0"
   },
-  "repositories": [
-    {
-      "type": "path",
-      "url": "../autolara"
+  "autoload": {
+    "psr-4": {
+      "Mdarmancse\\AutoLara\\": "src/"
     }
-  ],
+  },
   "extra": {
     "laravel": {
       "providers": [
         "Mdarmancse\\AutoLara\\AutoLaraServiceProvider"
       ]
     }
-  }
+  },
+  "minimum-stability": "dev",
+  "prefer-stable": true
 }
