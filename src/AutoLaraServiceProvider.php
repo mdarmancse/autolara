@@ -17,7 +17,7 @@ class AutoLaraServiceProvider extends ServiceProvider
     public function boot()
     {
         // Load package routes
-        $this->loadRoutesFrom(__DIR__ . '/../routes/web.php');
+        $this->loadRoutesFrom(__DIR__ . '/../src/routes/web.php');
 
         // Publish configuration file
         $this->publishes([
