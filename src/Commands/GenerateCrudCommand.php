@@ -5,6 +5,7 @@ namespace Mdarmancse\AutoLara\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
+
 class GenerateCrudCommand extends Command
 {
     protected $signature = 'autolara:crud {name}';
@@ -47,16 +48,23 @@ class GenerateCrudCommand extends Command
         $this->info("✅ Migration created: database/migrations/*_create_{$table}_table.php");
     }
 
+
+
     private function generateRepository($name)
     {
-        $path = app_path("Repositories/{$name}Repository.php");
-        if (!File::exists($path)) {
-            $template = str_replace('{{name}}', $name, $this->getStub('repository'));
-            File::put($path, $template);
-            $this->info("✅ Repository created: Repositories/{$name}Repository.php");
-        } else {
-            $this->warn("⚠️ Repository already exists: Repositories/{$name}Repository.php");
+        $repositoryPath = app_path('Repositories');
+        if (!File::exists($repositoryPath)) {
+            File::makeDirectory($repositoryPath, 0755, true);
         }
+
+        $filePath = "{$repositoryPath}/{$name}Repository.php";
+
+        $stub = file_get_contents(__DIR__ . '/../stubs/repository.stub');
+        $stub = str_replace('{{model}}', $name, $stub);
+
+        File::put($filePath, $stub);
+
+        $this->info("✅ Repository created: app/Repositories/{$name}Repository.php");
     }
 
     private function generateController($name)
