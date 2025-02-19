@@ -4,7 +4,7 @@ namespace Mdarmancse\AutoLara\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
-
+use Illuminate\Support\Str;
 class GenerateCrudCommand extends Command
 {
     protected $signature = 'autolara:crud {name}';
@@ -36,9 +36,11 @@ class GenerateCrudCommand extends Command
         }
     }
 
+
+
     private function generateMigration($name)
     {
-        $table = strtolower(str_plural($name));
+        $table = strtolower(Str::plural($name));
         $this->call('make:migration', [
             'name' => "create_{$table}_table"
         ]);
