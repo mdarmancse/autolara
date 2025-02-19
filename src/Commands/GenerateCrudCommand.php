@@ -52,15 +52,27 @@ class GenerateCrudCommand extends Command
     private function generateRepository($name)
     {
         $repositoryPath = app_path('Repositories');
-        File::ensureDirectoryExists($repositoryPath, 0755, true);
+
+        if (!File::exists($repositoryPath)) {
+            File::makeDirectory($repositoryPath, 0755, true);
+        }
 
         $filePath = "{$repositoryPath}/{$name}Repository.php";
 
-        if ($this->fileExists($filePath, "Repository")) {
+        // Correct path to stub
+        $stubPath = __DIR__ . '/../../stubs/repository.stub';
+
+        if (!File::exists($stubPath)) {
+            $this->error("❌ Stub file missing: {$stubPath}");
             return;
         }
 
-        $this->createFileFromStub('repository', $filePath, ['{{model}}' => $name]);
+        // Read and replace placeholders
+        $stub = file_get_contents($stubPath);
+        $stub = str_replace(['{{name}}', '{{ Name }}'], $name, $stub);
+
+        File::put($filePath, $stub);
+
         $this->info("✅ Repository created: app/Repositories/{$name}Repository.php");
     }
 
