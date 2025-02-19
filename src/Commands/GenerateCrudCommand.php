@@ -3,109 +3,79 @@
 namespace Mdarmancse\AutoLara\Commands;
 
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
 
 class GenerateCrudCommand extends Command
 {
-    protected $signature = 'auto-crud:generate {table} {columns}';
-    protected $description = 'Generate CRUD (Migration, Model, Controller, Repository, Request, Resource, Routes)';
+    protected $signature = 'autolara:crud {name}';
+    protected $description = 'Generate CRUD files for a given model name';
 
     public function handle()
     {
-        $table = $this->argument('table');
-        $columns = $this->argument('columns');
+        $name = ucfirst($this->argument('name'));
+        $this->info("Generating CRUD for: $name");
 
-        // Generate Migration
-        Artisan::call("make:migration create_{$table}_table --create={$table}");
-        $this->info("Migration created for table: {$table}");
+        $this->generateModel($name);
+        $this->generateMigration($name);
+        $this->generateRepository($name);
+        $this->generateController($name);
+        $this->generateRequest($name);
 
-        // Generate Model
-        Artisan::call("make:model {$this->studly($table)}");
-        $this->info("Model created: {$this->studly($table)}");
-
-        // Generate Controller
-        Artisan::call("make:controller {$this->studly($table)}Controller --api");
-        $this->info("Controller created: {$this->studly($table)}Controller");
-
-        // Generate Repository
-        $this->createRepository($table);
-
-        // Generate Request
-        Artisan::call("make:request {$this->studly($table)}Request");
-        $this->info("Form Request created: {$this->studly($table)}Request");
-
-        // Generate Resource
-        Artisan::call("make:resource {$this->studly($table)}Resource");
-        $this->info("Resource created: {$this->studly($table)}Resource");
-
-        // Generate Routes
-        $this->appendRoutes($table);
-
-        $this->info("CRUD for {$table} has been generated successfully.");
+        $this->info("✅ CRUD for $name generated successfully!");
     }
 
-    private function studly($value)
+    private function generateModel($name)
     {
-        return str_replace(' ', '', ucwords(str_replace('_', ' ', $value)));
+        $path = app_path("Models/{$name}.php");
+        if (!File::exists($path)) {
+            $template = str_replace('{{name}}', $name, $this->getStub('model'));
+            File::put($path, $template);
+            $this->info("✅ Model created: Models/{$name}.php");
+        } else {
+            $this->warn("⚠️ Model already exists: Models/{$name}.php");
+        }
     }
 
-    private function createRepository($table)
+    private function generateMigration($name)
     {
-        $repositoryPath = app_path("Repositories/{$this->studly($table)}Repository.php");
-
-        $repositoryContent = <<<PHP
-<?php
-
-namespace App\Repositories;
-
-use App\Models\\{$this->studly($table)};
-
-class {$this->studly($table)}Repository
-{
-    public function all()
-    {
-        return {$this->studly($table)}::all();
+        $table = strtolower(str_plural($name));
+        $this->call('make:migration', [
+            'name' => "create_{$table}_table"
+        ]);
+        $this->info("✅ Migration created: database/migrations/*_create_{$table}_table.php");
     }
 
-    public function find(\$id)
+    private function generateRepository($name)
     {
-        return {$this->studly($table)}::find(\$id);
+        $path = app_path("Repositories/{$name}Repository.php");
+        if (!File::exists($path)) {
+            $template = str_replace('{{name}}', $name, $this->getStub('repository'));
+            File::put($path, $template);
+            $this->info("✅ Repository created: Repositories/{$name}Repository.php");
+        } else {
+            $this->warn("⚠️ Repository already exists: Repositories/{$name}Repository.php");
+        }
     }
 
-    public function create(array \$data)
+    private function generateController($name)
     {
-        return {$this->studly($table)}::create(\$data);
+        $this->call('make:controller', [
+            'name' => "{$name}Controller",
+            '--resource' => true
+        ]);
+        $this->info("✅ Controller created: Http/Controllers/{$name}Controller.php");
     }
 
-    public function update(\$id, array \$data)
+    private function generateRequest($name)
     {
-        \$record = {$this->studly($table)}::find(\$id);
-        \$record->update(\$data);
-        return \$record;
+        $this->call('make:request', [
+            'name' => "{$name}Request"
+        ]);
+        $this->info("✅ Request created: Http/Requests/{$name}Request.php");
     }
 
-    public function delete(\$id)
+    private function getStub($type)
     {
-        return {$this->studly($table)}::destroy(\$id);
-    }
-}
-PHP;
-
-        File::put($repositoryPath, $repositoryContent);
-        $this->info("Repository created: {$this->studly($table)}Repository");
-    }
-
-    private function appendRoutes($table)
-    {
-        $routesFile = base_path('routes/web.php');
-        $routeEntry = <<<PHP
-
-// Routes for {$table}
-Route::apiResource('{$table}', App\Http\Controllers\\{$this->studly($table)}Controller::class);
-PHP;
-
-        File::append($routesFile, $routeEntry);
-        $this->info("Routes added for: {$table}");
+        return File::get(__DIR__."/../../stubs/{$type}.stub");
     }
 }
