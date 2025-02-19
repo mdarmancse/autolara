@@ -59,7 +59,7 @@ class GenerateCrudCommand extends Command
 
         $filePath = "{$repositoryPath}/{$name}Repository.php";
 
-        $stub = file_get_contents(__DIR__ . '/../stubs/repository.stub');
+        $stub = file_get_contents(__DIR__ . '../stubs/repository.stub');
         $stub = str_replace('{{model}}', $name, $stub);
 
         File::put($filePath, $stub);
