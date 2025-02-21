@@ -14,7 +14,7 @@ class {{model}}Seeder extends Seeder
 
         foreach (range(1, 10) as $index) {
             DB::table('{{table}}')->insert([
-                {{dynamic_columns}}
+                {{dynamic_columns}},
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);

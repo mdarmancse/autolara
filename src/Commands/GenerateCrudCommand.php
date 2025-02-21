@@ -90,16 +90,19 @@ class GenerateCrudCommand extends Command
         }
 
         // Generate dynamic column placeholders
-        $columnData = '';
+        $columnData = [];
         foreach ($columns as $column => $type) {
             $fakerValue = $this->getFakerValue($type);
-            $columnData .= "            '{$column}' => {$fakerValue},\n";
+            $columnData[] = "            '{$column}' => {$fakerValue}";
         }
+
+        // Convert array to string properly formatted
+        $columnString = implode(",\n", $columnData);
 
         $stub = file_get_contents($stubPath);
         $stub = str_replace(
             ['{{model}}', '{{table}}', '{{dynamic_columns}}'],
-            [$model, $table, trim($columnData, ",\n")],
+            [$model, $table, $columnString],
             $stub
         );
 
