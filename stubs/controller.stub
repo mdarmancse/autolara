@@ -3,14 +3,14 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use App\Http\Requests\{model}Request;
-use App\Repositories\{model}Repository;
+use App\Http\Requests\{{model}}Request;
+use App\Repositories\{{model}}Repository;
 
-class {model}Controller extends Controller
+class {{model}}Controller extends Controller
 {
     protected $repository;
 
-    public function __construct({model}Repository $repository)
+    public function __construct({{model}}Repository $repository)
     {
         $this->repository = $repository;
     }
@@ -24,38 +24,33 @@ class {model}Controller extends Controller
     {
         $item = $this->repository->find($id);
         if (!$item) {
-            return response()->json(['message' => '{model} not found'], 404);
+            return response()->json(['message' => '{{model}} not found'], 404);
         }
         return response()->json($item, 200);
     }
 
-    public function store({model}Request $request)
+    public function store({{model}}Request $request)
     {
-        $data = $request->validated();
-        return response()->json($this->repository->create($data), 201);
+        return response()->json($this->repository->create($request->validated()), 201);
     }
 
-    public function update({model}Request $request, $id)
+    public function update({{model}}Request $request, $id)
     {
-        $item = $this->repository->find($id);
-        if (!$item) {
-            return response()->json(['message' => '{model} not found'], 404);
+        if (!$this->repository->find($id)) {
+            return response()->json(['message' => '{{model}} not found'], 404);
         }
 
-        $data = $request->validated();
-        $this->repository->update($id, $data);
-
-        return response()->json(['message' => '{model} updated successfully'], 200);
+        $this->repository->update($id, $request->validated());
+        return response()->json(['message' => '{{model}} updated successfully'], 200);
     }
 
     public function destroy($id)
     {
-        $item = $this->repository->find($id);
-        if (!$item) {
-            return response()->json(['message' => '{model} not found'], 404);
+        if (!$this->repository->find($id)) {
+            return response()->json(['message' => '{{model}} not found'], 404);
         }
 
         $this->repository->delete($id);
-        return response()->json(['message' => '{model} deleted successfully'], 200);
+        return response()->json(['message' => '{{model}} deleted successfully'], 200);
     }
 }

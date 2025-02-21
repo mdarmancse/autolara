@@ -5,9 +5,9 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class {model} extends Model
+class {{model}} extends Model
 {
     use HasFactory;
 
-    protected $fillable = [{__fillable__}];
+    protected $fillable = [{{fillable}}];
 }
