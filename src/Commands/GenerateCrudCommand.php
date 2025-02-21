@@ -109,20 +109,29 @@ class GenerateCrudCommand extends Command
     private function updateRoutes($name)
     {
         $routePath = base_path('routes/api.php');
+
+        // Ensure routes directory exists
+        if (!File::exists(dirname($routePath))) {
+            File::makeDirectory(dirname($routePath), 0755, true);
+        }
+
+        // Ensure api.php file exists
+        if (!File::exists($routePath)) {
+            File::put($routePath, "<?php\n\nuse Illuminate\\Support\\Facades\\Route;\n\n");
+            $this->info("✅ Created routes/api.php file.");
+        }
+
         $routeDefinition = "\n// AutoLara Routes for {$name}
 Route::apiResource('" . strtolower(Str::plural($name)) . "', \\App\\Http\\Controllers\\{$name}Controller::class);";
 
-        if (file_exists($routePath)) {
-            if (strpos(file_get_contents($routePath), "{$name}Controller::class") === false) {
-                file_put_contents($routePath, $routeDefinition, FILE_APPEND);
-                $this->info("✅ Routes added for {$name} in routes/api.php");
-            } else {
-                $this->warn("⚠️ Routes for {$name} already exist in routes/api.php");
-            }
+        if (strpos(file_get_contents($routePath), "{$name}Controller::class") === false) {
+            file_put_contents($routePath, $routeDefinition, FILE_APPEND);
+            $this->info("✅ Routes added for {$name} in routes/api.php");
         } else {
-            $this->warn("⚠️ routes/api.php not found, could not add routes.");
+            $this->warn("⚠️ Routes for {$name} already exist in routes/api.php");
         }
     }
+
 
     private function createFileFromStub($stubName, $destinationPath, array $replacements = [])
     {
