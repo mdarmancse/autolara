@@ -9,105 +9,130 @@ use Exception;
 
 class GenerateCrudCommand extends Command
 {
-    protected $signature = 'autolara:crud {name} {--columns=}';
-    protected $description = 'Generate CRUD files using Repository Pattern with dynamic columns';
+    protected $signature = 'autolara:crud {model} {fields*}';
+    protected $description = 'Generate CRUD files using Repository Pattern';
 
     public function handle()
     {
-        $name = ucfirst($this->argument('name'));
-        $columns = $this->option('columns');
-        $columnsArray = $this->parseColumns($columns);
+        $model = ucfirst($this->argument('model'));
+        $fields = $this->argument('fields');
 
-        $this->info("🔄 Generating CRUD for: $name");
+        $this->info("🔄 Generating CRUD for: $model with fields: " . implode(', ', $fields));
 
         try {
-            $this->generateModel($name, $columnsArray);
-            $this->generateMigration($name, $columnsArray);
-            $this->generateRepository($name);
-            $this->generateController($name);
-            $this->generateRequest($name);
-            $this->generateRoutes($name);
+            $this->generateModel($model, $fields);
+            $this->generateMigration($model, $fields);
+            $this->generateRepository($model);
+            $this->generateRequest($model, $fields);
+            $this->generateController($model);
+            $this->addRoutes($model);
 
-            $this->info("✅ CRUD for $name generated successfully!");
+            $this->info("✅ CRUD for $model generated successfully!");
         } catch (Exception $e) {
             $this->error("❌ Error: " . $e->getMessage());
         }
     }
 
-    private function generateModel($name, $columnsArray)
+    private function generateModel($model, $fields)
     {
-        $path = app_path("Models/{$name}.php");
+        $path = app_path("Models/{$model}.php");
 
         if ($this->fileExists($path, "Model")) {
             return;
         }
 
-        $fillable = implode(", ", array_map(fn($col) => "'{$col['name']}'", $columnsArray));
+        // Generate fillable fields
+        $fillableFields = array_map(fn($field) => "'" . explode(':', $field)[0] . "'", $fields);
+        $fillable = implode(", ", $fillableFields);
+
         $this->createFileFromStub('model', $path, [
-            '{{name}}' => $name,
-            '{{fillable}}' => "[{$fillable}]"
+            '{__model__}' => $model,
+            '{__fillable__}' => $fillable
         ]);
 
-        $this->info("✅ Model created: app/Models/{$name}.php");
+        $this->info("✅ Model created: app/Models/{$model}.php");
     }
 
-    private function generateMigration($name, $columnsArray)
+    private function generateMigration($model, $fields)
     {
-        $table = Str::plural(Str::snake($name));
-        $this->call('make:migration', ['name' => "create_{$table}_table"]);
-        $this->info("✅ Migration created: database/migrations/*_create_{$table}_table.php");
+        $table = Str::plural(Str::snake($model));
+        $migrationName = "create_{$table}_table";
+
+        $this->call('make:migration', ['name' => $migrationName]);
+
+        $this->info("✅ Migration created: database/migrations/*_{$migrationName}.php");
     }
 
-    private function generateRepository($name)
+    private function generateRepository($model)
     {
-        $repositoryPath = app_path('Repositories');
+        $repositoryPath = app_path("Repositories/{$model}Repository.php");
 
-        if (!File::exists($repositoryPath)) {
-            File::makeDirectory($repositoryPath, 0755, true);
+        if ($this->fileExists($repositoryPath, "Repository")) {
+            return;
         }
 
-        $filePath = "{$repositoryPath}/{$name}Repository.php";
-        $this->createFileFromStub('repository', $filePath, ['{{name}}' => $name]);
+        $this->createFileFromStub('repository', $repositoryPath, [
+            '{__model__}' => $model
+        ]);
 
-        $this->info("✅ Repository created: app/Repositories/{$name}Repository.php");
+        $this->info("✅ Repository created: app/Repositories/{$model}Repository.php");
     }
 
-    private function generateController($name)
+    private function generateRequest($model, $fields)
     {
-        $this->call('make:controller', ['name' => "{$name}Controller", '--resource' => true]);
-        $this->info("✅ Controller created: app/Http/Controllers/{$name}Controller.php");
+        $requestPath = app_path("Http/Requests/{$model}Request.php");
+
+        if ($this->fileExists($requestPath, "Request")) {
+            return;
+        }
+
+        // Generate validation rules dynamically
+        $rulesArray = [];
+        foreach ($fields as $field) {
+            [$name, $type] = explode(':', $field);
+            $rulesArray[] = "'$name' => '" . $this->getValidationRule($type) . "'";
+        }
+        $rules = implode(",\n            ", $rulesArray);
+
+        $this->createFileFromStub('request', $requestPath, [
+            '{__model__}' => $model,
+            '{__rules__}' => $rules
+        ]);
+
+        $this->info("✅ Request created: app/Http/Requests/{$model}Request.php");
     }
 
-    private function generateRequest($name)
+    private function generateController($model)
     {
-        $this->call('make:request', ['name' => "{$name}Request"]);
-        $this->info("✅ Request created: app/Http/Requests/{$name}Request.php");
+        $controllerPath = app_path("Http/Controllers/{$model}Controller.php");
+
+        if ($this->fileExists($controllerPath, "Controller")) {
+            return;
+        }
+
+        $this->createFileFromStub('controller', $controllerPath, [
+            '{__model__}' => $model
+        ]);
+
+        $this->info("✅ Controller created: app/Http/Controllers/{$model}Controller.php");
     }
 
-    private function generateRoutes($name)
+    private function addRoutes($model)
     {
         $apiRoutesPath = base_path('routes/api.php');
+
         if (!File::exists($apiRoutesPath)) {
-            File::put($apiRoutesPath, "<?php\n\nuse Illuminate\\Support\\Facades\\Route;\n\n");
-            $this->info("✅ Created routes/api.php file");
+            File::put($apiRoutesPath, "<?php\n\nuse Illuminate\Support\Facades\Route;\n\n");
         }
 
-        $routeDefinition = "Route::apiResource('" . Str::plural(Str::snake($name)) . "', " . $name . "Controller::class);\n";
-        File::append($apiRoutesPath, $routeDefinition);
-        $this->info("✅ Routes added to routes/api.php");
-    }
+        $routeEntry = "Route::apiResource('" . Str::plural(Str::snake($model)) . "', \App\Http\Controllers\\{$model}Controller::class);\n";
 
-    private function parseColumns($columns)
-    {
-        $columnsArray = [];
-        if ($columns) {
-            $pairs = explode(' ', $columns);
-            foreach ($pairs as $pair) {
-                [$name, $type] = explode(':', $pair);
-                $columnsArray[] = ['name' => $name, 'type' => $type];
-            }
+        if (!str_contains(File::get($apiRoutesPath), $routeEntry)) {
+            File::append($apiRoutesPath, $routeEntry);
+            $this->info("✅ Route added: " . trim($routeEntry));
+        } else {
+            $this->warn("⚠️ Route already exists in api.php");
         }
-        return $columnsArray;
     }
 
     private function createFileFromStub($stubName, $destinationPath, array $replacements = [])
@@ -120,6 +145,7 @@ class GenerateCrudCommand extends Command
 
         $stubContent = File::get($stubPath);
         $content = str_replace(array_keys($replacements), array_values($replacements), $stubContent);
+
         File::put($destinationPath, $content);
     }
 
@@ -130,5 +156,18 @@ class GenerateCrudCommand extends Command
             return true;
         }
         return false;
+    }
+
+    private function getValidationRule($type)
+    {
+        return match ($type) {
+            'integer' => 'required|integer',
+            'boolean' => 'required|boolean',
+            'string' => 'required|string|max:255',
+            'text' => 'required|string',
+            'date' => 'required|date',
+            'email' => 'required|email|unique:users,email',
+            default => 'required'
+        };
     }
 }

@@ -1,8 +1,10 @@
+<?php
+
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-class {{name}}Request extends FormRequest
+class {__model__}Request extends FormRequest
 {
     public function authorize()
     {
@@ -12,7 +14,7 @@ class {{name}}Request extends FormRequest
     public function rules()
     {
         return [
-            {{rules}}
+            {__rules__}
         ];
     }
 }
