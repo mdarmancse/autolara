@@ -9,12 +9,12 @@ use Exception;
 
 class GenerateCrudCommand extends Command
 {
-    protected $signature = 'autolara:crud {__model__} {fields*}';
+    protected $signature = 'autolara:crud {model} {fields*}';
     protected $description = 'Generate CRUD files using Repository Pattern with Migration, and Routes';
 
     public function handle()
     {
-        $model = ucfirst($this->argument('__model__'));
+        $model = ucfirst($this->argument('model'));
         $fields = $this->argument('fields');
 
         $table = Str::plural(Str::snake($model));
