@@ -4,17 +4,20 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
+use Faker\Factory as Faker;
 
-class {__model__}Seeder extends Seeder
+class {{model}}Seeder extends Seeder
 {
-    /**
-     * Run the database seeds.
-     */
-    public function run(): void
+    public function run()
     {
-        DB::table('{__table__}')->insert([
-            {__factory_data__}
-        ]);
+        $faker = Faker::create();
+
+        foreach (range(1, 10) as $index) {
+            DB::table('{{table}}')->insert([
+                {{dynamic_columns}}
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
     }
 }

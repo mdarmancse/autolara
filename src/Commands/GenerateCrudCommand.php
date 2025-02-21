@@ -78,11 +78,51 @@ class GenerateCrudCommand extends Command
         $this->call('make:request', ['name' => "{$model}Request"]);
     }
 
-    private function generateSeeder($model, $fields)
+    private function generateSeeder($model, $columns)
     {
         $table = Str::plural(Str::snake($model));
         $seederPath = database_path("seeders/{$model}Seeder.php");
-        $this->createFileFromStub('seeder', $seederPath, ['{{model}}' => $model, '{{table}}' => $table]);
+        $stubPath = __DIR__ . '/../../stubs/seeder.stub';
+
+        if (!File::exists($stubPath)) {
+            $this->error("❌ Stub file missing: {$stubPath}");
+            return;
+        }
+
+        // Generate dynamic column placeholders
+        $columnData = '';
+        foreach ($columns as $column => $type) {
+            $fakerValue = $this->getFakerValue($type);
+            $columnData .= "            '{$column}' => {$fakerValue},\n";
+        }
+
+        $stub = file_get_contents($stubPath);
+        $stub = str_replace(
+            ['{{model}}', '{{table}}', '{{dynamic_columns}}'],
+            [$model, $table, trim($columnData, ",\n")],
+            $stub
+        );
+
+        File::put($seederPath, $stub);
+        $this->info("✅ Seeder created: database/seeders/{$model}Seeder.php");
+    }
+
+    /**
+     * Get corresponding Faker function for different column types.
+     */
+    private function getFakerValue($type)
+    {
+        return match ($type) {
+            'string' => '$faker->word',
+            'integer' => '$faker->randomNumber()',
+            'boolean' => '$faker->boolean',
+            'text' => '$faker->sentence',
+            'date' => '$faker->date',
+            'datetime' => '$faker->dateTime',
+            'email' => '$faker->email',
+            'float' => '$faker->randomFloat(2, 1, 1000)',
+            default => "''"
+        };
     }
 
     private function updateRoutes($model)
