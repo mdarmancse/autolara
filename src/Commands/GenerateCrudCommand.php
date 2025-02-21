@@ -10,22 +10,29 @@ use Exception;
 class GenerateCrudCommand extends Command
 {
     protected $signature = 'autolara:crud {model} {fields*}';
-    protected $description = 'Generate CRUD files using Repository Pattern';
+    protected $description = 'Generate CRUD files using Repository Pattern with Migration, Seeder, and Routes';
 
     public function handle()
     {
         $model = ucfirst($this->argument('model'));
         $fields = $this->argument('fields');
 
-        $this->info("🔄 Generating CRUD for: $model with fields: " . implode(', ', $fields));
+        $table = Str::plural(Str::snake($model));
+
+        $this->info("🔄 Generating CRUD for: $model");
 
         try {
-            $this->generateModel($model, $fields);
+            $this->generateModel($model);
             $this->generateMigration($model, $fields);
             $this->generateRepository($model);
-            $this->generateRequest($model, $fields);
             $this->generateController($model);
-            $this->addRoutes($model);
+            $this->generateRequest($model);
+            $this->generateSeeder($model, $fields);
+            $this->updateRoutes($model);
+
+            $this->info("⚡ Running Migration & Seeding...");
+            $this->call('migrate');
+            $this->call('db:seed', ['--class' => "{$model}Seeder"]);
 
             $this->info("✅ CRUD for $model generated successfully!");
         } catch (Exception $e) {
@@ -33,141 +40,69 @@ class GenerateCrudCommand extends Command
         }
     }
 
-    private function generateModel($model, $fields)
+    private function generateModel($model)
     {
         $path = app_path("Models/{$model}.php");
-
-        if ($this->fileExists($path, "Model")) {
+        if (File::exists($path)) {
+            $this->warn("⚠️ Model already exists: app/Models/{$model}.php");
             return;
         }
-
-        // Generate fillable fields
-        $fillableFields = array_map(fn($field) => "'" . explode(':', $field)[0] . "'", $fields);
-        $fillable = implode(", ", $fillableFields);
-
-        $this->createFileFromStub('model', $path, [
-            '{__model__}' => $model,
-            '{__fillable__}' => $fillable
-        ]);
-
-        $this->info("✅ Model created: app/Models/{$model}.php");
+        $this->createFileFromStub('model', $path, ['{{model}}' => $model]);
     }
 
     private function generateMigration($model, $fields)
     {
         $table = Str::plural(Str::snake($model));
-        $migrationName = "create_{$table}_table";
-
-        $this->call('make:migration', ['name' => $migrationName]);
-
-        $this->info("✅ Migration created: database/migrations/*_{$migrationName}.php");
+        $fieldDefinitions = "";
+        foreach ($fields as $field) {
+            [$name, $type] = explode(':', $field);
+            $fieldDefinitions .= "\$table->${type}('${name}');\n";
+        }
+        $this->call('make:migration', ['name' => "create_{$table}_table"]);
     }
 
     private function generateRepository($model)
     {
-        $repositoryPath = app_path("Repositories/{$model}Repository.php");
-
-        if ($this->fileExists($repositoryPath, "Repository")) {
-            return;
-        }
-
-        $this->createFileFromStub('repository', $repositoryPath, [
-            '{__model__}' => $model
-        ]);
-
-        $this->info("✅ Repository created: app/Repositories/{$model}Repository.php");
-    }
-
-    private function generateRequest($model, $fields)
-    {
-        $requestPath = app_path("Http/Requests/{$model}Request.php");
-
-        if ($this->fileExists($requestPath, "Request")) {
-            return;
-        }
-
-        // Generate validation rules dynamically
-        $rulesArray = [];
-        foreach ($fields as $field) {
-            [$name, $type] = explode(':', $field);
-            $rulesArray[] = "'$name' => '" . $this->getValidationRule($type) . "'";
-        }
-        $rules = implode(",\n            ", $rulesArray);
-
-        $this->createFileFromStub('request', $requestPath, [
-            '{__model__}' => $model,
-            '{__rules__}' => $rules
-        ]);
-
-        $this->info("✅ Request created: app/Http/Requests/{$model}Request.php");
+        $path = app_path("Repositories/{$model}Repository.php");
+        $this->createFileFromStub('repository', $path, ['{{model}}' => $model]);
     }
 
     private function generateController($model)
     {
-        $controllerPath = app_path("Http/Controllers/{$model}Controller.php");
-
-        if ($this->fileExists($controllerPath, "Controller")) {
-            return;
-        }
-
-        $this->createFileFromStub('controller', $controllerPath, [
-            '{__model__}' => $model
-        ]);
-
-        $this->info("✅ Controller created: app/Http/Controllers/{$model}Controller.php");
+        $path = app_path("Http/Controllers/{$model}Controller.php");
+        $this->createFileFromStub('controller', $path, ['{{model}}' => $model]);
     }
 
-    private function addRoutes($model)
+    private function generateRequest($model)
     {
-        $apiRoutesPath = base_path('routes/api.php');
+        $this->call('make:request', ['name' => "{$model}Request"]);
+    }
 
-        if (!File::exists($apiRoutesPath)) {
-            File::put($apiRoutesPath, "<?php\n\nuse Illuminate\Support\Facades\Route;\n\n");
+    private function generateSeeder($model, $fields)
+    {
+        $table = Str::plural(Str::snake($model));
+        $seederPath = database_path("seeders/{$model}Seeder.php");
+        $this->createFileFromStub('seeder', $seederPath, ['{{model}}' => $model, '{{table}}' => $table]);
+    }
+
+    private function updateRoutes($model)
+    {
+        $routesPath = base_path('routes/api.php');
+        if (!File::exists($routesPath)) {
+            File::put($routesPath, "<?php\n\nuse Illuminate\\Support\\Facades\\Route;\n");
         }
-
         $routeEntry = "Route::apiResource('" . Str::plural(Str::snake($model)) . "', \App\Http\Controllers\\{$model}Controller::class);\n";
-
-        if (!str_contains(File::get($apiRoutesPath), $routeEntry)) {
-            File::append($apiRoutesPath, $routeEntry);
-            $this->info("✅ Route added: " . trim($routeEntry));
-        } else {
-            $this->warn("⚠️ Route already exists in api.php");
-        }
+        File::append($routesPath, "\n" . $routeEntry);
     }
 
     private function createFileFromStub($stubName, $destinationPath, array $replacements = [])
     {
         $stubPath = realpath(__DIR__ . "/../../stubs/{$stubName}.stub");
-
         if (!$stubPath || !File::exists($stubPath)) {
-            throw new Exception("Stub file '{$stubName}.stub' not found in the stubs directory.");
+            throw new Exception("Stub file '{$stubName}.stub' not found.");
         }
-
         $stubContent = File::get($stubPath);
         $content = str_replace(array_keys($replacements), array_values($replacements), $stubContent);
-
         File::put($destinationPath, $content);
-    }
-
-    private function fileExists($filePath, $type)
-    {
-        if (File::exists($filePath)) {
-            $this->warn("⚠️ {$type} already exists: " . str_replace(base_path() . '/', '', $filePath));
-            return true;
-        }
-        return false;
-    }
-
-    private function getValidationRule($type)
-    {
-        return match ($type) {
-            'integer' => 'required|integer',
-            'boolean' => 'required|boolean',
-            'string' => 'required|string|max:255',
-            'text' => 'required|string',
-            'date' => 'required|date',
-            'email' => 'required|email|unique:users,email',
-            default => 'required'
-        };
     }
 }
