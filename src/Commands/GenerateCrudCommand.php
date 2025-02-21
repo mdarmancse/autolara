@@ -89,14 +89,14 @@ class GenerateCrudCommand extends Command
             return;
         }
 
-        // Generate dynamic column placeholders
+        // Ensure correct formatting of column data
         $columnData = [];
         foreach ($columns as $column => $type) {
             $fakerValue = $this->getFakerValue($type);
-            $columnData[] = "            '{$column}' => {$fakerValue}";
+            $columnData[] = "                '{$column}' => {$fakerValue}";
         }
 
-        // Convert array to string properly formatted
+        // Convert array to properly formatted string
         $columnString = implode(",\n", $columnData);
 
         $stub = file_get_contents($stubPath);
