@@ -1,9 +1,8 @@
-<?php
-
 namespace App\Http\Controllers;
 
-use App\Repositories\{{name}}Repository;
+use App\Http\Controllers\Controller;
 use App\Http\Requests\{{name}}Request;
+use App\Repositories\{{name}}Repository;
 use Illuminate\Http\Request;
 
 class {{name}}Controller extends Controller
@@ -15,66 +14,36 @@ class {{name}}Controller extends Controller
         $this->repository = $repository;
     }
 
-    // ✅ Fetch all records
     public function index()
     {
-        return response()->json([
-            'success' => true,
-            'data' => $this->repository->all()
-        ]);
+        return response()->json($this->repository->all());
     }
 
-    // ✅ Store a new record
     public function store({{name}}Request $request)
     {
-        $data = $this->repository->create($request->validated());
+        $data = $request->only([{{fillable}}]);
+        $record = $this->repository->create($data);
 
-        return response()->json([
-            'success' => true,
-            'message' => '{{name}} created successfully!',
-            'data' => $data
-        ], 201);
+        return response()->json($record, 201);
     }
 
-    // ✅ Show a single record
     public function show($id)
     {
-        $data = $this->repository->find($id);
-
-        if (!$data) {
-            return response()->json(['success' => false, 'message' => 'Record not found'], 404);
-        }
-
-        return response()->json(['success' => true, 'data' => $data]);
+        return response()->json($this->repository->find($id));
     }
 
-    // ✅ Update a record
     public function update({{name}}Request $request, $id)
     {
-        $updated = $this->repository->update($id, $request->validated());
+        $data = $request->only([{{fillable}}]);
+        $this->repository->update($id, $data);
 
-        if (!$updated) {
-            return response()->json(['success' => false, 'message' => 'Update failed'], 400);
-        }
-
-        return response()->json([
-            'success' => true,
-            'message' => '{{name}} updated successfully!'
-        ]);
+        return response()->json(['message' => '{{name}} updated successfully.']);
     }
 
-    // ✅ Delete a record
     public function destroy($id)
     {
-        $deleted = $this->repository->delete($id);
+        $this->repository->delete($id);
 
-        if (!$deleted) {
-            return response()->json(['success' => false, 'message' => 'Delete failed'], 400);
-        }
-
-        return response()->json([
-            'success' => true,
-            'message' => '{{name}} deleted successfully!'
-        ]);
+        return response()->json(['message' => '{{name}} deleted successfully.']);
     }
 }

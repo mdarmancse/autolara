@@ -1,5 +1,3 @@
-<?php
-
 namespace App\Repositories;
 
 use App\Models\{{name}};
@@ -30,11 +28,11 @@ class {{name}}Repository
 
     public function update($id, array $data)
     {
-        return $this->model->find($id)->update($data);
+        return $this->model->findOrFail($id)->update($data);
     }
 
     public function delete($id)
     {
-        return $this->model->find($id)->delete();
+        return $this->model->findOrFail($id)->delete();
     }
 }

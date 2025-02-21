@@ -9,21 +9,24 @@ use Exception;
 
 class GenerateCrudCommand extends Command
 {
-    protected $signature = 'autolara:crud {name}';
-    protected $description = 'Generate CRUD files using Repository Pattern';
+    protected $signature = 'autolara:crud {name} {--columns=}';
+    protected $description = 'Generate CRUD files using Repository Pattern with dynamic columns';
 
     public function handle()
     {
         $name = ucfirst($this->argument('name'));
+        $columns = $this->option('columns');
+        $columnsArray = $this->parseColumns($columns);
+
         $this->info("🔄 Generating CRUD for: $name");
 
         try {
-            $this->generateModel($name);
-            $this->generateMigration($name);
+            $this->generateModel($name, $columnsArray);
+            $this->generateMigration($name, $columnsArray);
             $this->generateRepository($name);
             $this->generateController($name);
             $this->generateRequest($name);
-            $this->updateRoutes($name);
+            $this->generateRoutes($name);
 
             $this->info("✅ CRUD for $name generated successfully!");
         } catch (Exception $e) {
@@ -31,7 +34,7 @@ class GenerateCrudCommand extends Command
         }
     }
 
-    private function generateModel($name)
+    private function generateModel($name, $columnsArray)
     {
         $path = app_path("Models/{$name}.php");
 
@@ -39,11 +42,16 @@ class GenerateCrudCommand extends Command
             return;
         }
 
-        $this->createFileFromStub('model', $path, ['{{name}}' => $name]);
+        $fillable = implode(", ", array_map(fn($col) => "'{$col['name']}'", $columnsArray));
+        $this->createFileFromStub('model', $path, [
+            '{{name}}' => $name,
+            '{{fillable}}' => "[{$fillable}]"
+        ]);
+
         $this->info("✅ Model created: app/Models/{$name}.php");
     }
 
-    private function generateMigration($name)
+    private function generateMigration($name, $columnsArray)
     {
         $table = Str::plural(Str::snake($name));
         $this->call('make:migration', ['name' => "create_{$table}_table"]);
@@ -59,44 +67,14 @@ class GenerateCrudCommand extends Command
         }
 
         $filePath = "{$repositoryPath}/{$name}Repository.php";
-        $stubPath = __DIR__ . '/../../stubs/repository.stub';
+        $this->createFileFromStub('repository', $filePath, ['{{name}}' => $name]);
 
-        if (!File::exists($stubPath)) {
-            $this->error("❌ Stub file missing: {$stubPath}");
-            return;
-        }
-
-        $stub = file_get_contents($stubPath);
-        $stub = str_replace(['{{name}}', '{{ Name }}'], $name, $stub);
-
-        File::put($filePath, $stub);
         $this->info("✅ Repository created: app/Repositories/{$name}Repository.php");
     }
 
     private function generateController($name)
     {
-        $controllerPath = app_path('Http/Controllers');
-        $controllerFile = "{$controllerPath}/{$name}Controller.php";
-
-        if (!File::exists($controllerPath)) {
-            File::makeDirectory($controllerPath, 0755, true);
-        }
-
-        $stubPath = __DIR__ . '/../../stubs/controller.stub';
-
-        if (!File::exists($stubPath)) {
-            $this->error("❌ Stub file missing: {$stubPath}");
-            return;
-        }
-
-        $stub = file_get_contents($stubPath);
-        $stub = str_replace(
-            ['{{name}}', '{{Name}}'],
-            [$name, ucfirst($name)],
-            $stub
-        );
-
-        File::put($controllerFile, $stub);
+        $this->call('make:controller', ['name' => "{$name}Controller", '--resource' => true]);
         $this->info("✅ Controller created: app/Http/Controllers/{$name}Controller.php");
     }
 
@@ -106,32 +84,31 @@ class GenerateCrudCommand extends Command
         $this->info("✅ Request created: app/Http/Requests/{$name}Request.php");
     }
 
-    private function updateRoutes($name)
+    private function generateRoutes($name)
     {
-        $routePath = base_path('routes/api.php');
-
-        // Ensure routes directory exists
-        if (!File::exists(dirname($routePath))) {
-            File::makeDirectory(dirname($routePath), 0755, true);
+        $apiRoutesPath = base_path('routes/api.php');
+        if (!File::exists($apiRoutesPath)) {
+            File::put($apiRoutesPath, "<?php\n\nuse Illuminate\\Support\\Facades\\Route;\n\n");
+            $this->info("✅ Created routes/api.php file");
         }
 
-        // Ensure api.php file exists
-        if (!File::exists($routePath)) {
-            File::put($routePath, "<?php\n\nuse Illuminate\\Support\\Facades\\Route;\n\n");
-            $this->info("✅ Created routes/api.php file.");
-        }
-
-        $routeDefinition = "\n// AutoLara Routes for {$name}
-Route::apiResource('" . strtolower(Str::plural($name)) . "', \\App\\Http\\Controllers\\{$name}Controller::class);";
-
-        if (strpos(file_get_contents($routePath), "{$name}Controller::class") === false) {
-            file_put_contents($routePath, $routeDefinition, FILE_APPEND);
-            $this->info("✅ Routes added for {$name} in routes/api.php");
-        } else {
-            $this->warn("⚠️ Routes for {$name} already exist in routes/api.php");
-        }
+        $routeDefinition = "Route::apiResource('" . Str::plural(Str::snake($name)) . "', " . $name . "Controller::class);\n";
+        File::append($apiRoutesPath, $routeDefinition);
+        $this->info("✅ Routes added to routes/api.php");
     }
 
+    private function parseColumns($columns)
+    {
+        $columnsArray = [];
+        if ($columns) {
+            $pairs = explode(' ', $columns);
+            foreach ($pairs as $pair) {
+                [$name, $type] = explode(':', $pair);
+                $columnsArray[] = ['name' => $name, 'type' => $type];
+            }
+        }
+        return $columnsArray;
+    }
 
     private function createFileFromStub($stubName, $destinationPath, array $replacements = [])
     {
@@ -143,7 +120,6 @@ Route::apiResource('" . strtolower(Str::plural($name)) . "', \\App\\Http\\Contro
 
         $stubContent = File::get($stubPath);
         $content = str_replace(array_keys($replacements), array_values($replacements), $stubContent);
-
         File::put($destinationPath, $content);
     }
 
