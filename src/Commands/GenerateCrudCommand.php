@@ -78,12 +78,34 @@ class GenerateCrudCommand extends Command
 
     private function generateController($name)
     {
-        $this->call('make:controller', [
-            'name' => "{$name}Controller",
-            '--resource' => true
-        ]);
+        $controllerPath = app_path('Http/Controllers');
+        $controllerFile = "{$controllerPath}/{$name}Controller.php";
+
+        if (!File::exists($controllerPath)) {
+            File::makeDirectory($controllerPath, 0755, true);
+        }
+
+        // Correct stub path
+        $stubPath = __DIR__ . '/../../stubs/controller.stub';
+
+        if (!File::exists($stubPath)) {
+            $this->error("❌ Stub file missing: {$stubPath}");
+            return;
+        }
+
+        // Read and replace placeholders
+        $stub = file_get_contents($stubPath);
+        $stub = str_replace(
+            ['{{name}}', '{{Name}}'],
+            [$name, ucfirst($name)],
+            $stub
+        );
+
+        File::put($controllerFile, $stub);
+
         $this->info("✅ Controller created: app/Http/Controllers/{$name}Controller.php");
     }
+
 
     private function generateRequest($name)
     {
