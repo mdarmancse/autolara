@@ -10,7 +10,7 @@ use Exception;
 class GenerateCrudCommand extends Command
 {
     protected $signature = 'autolara:crud {model} {fields*}';
-    protected $description = 'Generate CRUD files using Repository Pattern with Migration, Seeder, and Routes';
+    protected $description = 'Generate CRUD files using Repository Pattern with Migration, and Routes';
 
     public function handle()
     {
@@ -29,9 +29,8 @@ class GenerateCrudCommand extends Command
             $this->generateRequest($model);
             $this->updateRoutes($model);
 
-            $this->info("⚡ Running Migration & Seeding...");
+            $this->info("⚡ Running Migration...");
             $this->call('migrate');
-            $this->call('db:seed', ['--class' => "{$model}Seeder"]);
 
             $this->info("✅ CRUD for $model generated successfully!");
         } catch (Exception $e) {
