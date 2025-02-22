@@ -26,7 +26,7 @@ class GenerateCrudCommand extends Command
             $this->generateRepository($model);
             $this->generateController($model);
             $this->generateRequest($model);
-            $this->updateRoutes($model);
+            $this->addRoutes($model);
 
             // Run Migration
             $this->runMigration();
@@ -90,11 +90,26 @@ class GenerateCrudCommand extends Command
         ]);
         $this->info("✅ Form request for $model generated.");
     }
-
-    private function updateRoutes($model)
+    private function addRoutes($model)
     {
-        $this->info("✅ Routes for $model updated.");
+        $routeFile = base_path('routes/api.php');
+
+        if (!file_exists($routeFile)) {
+            file_put_contents($routeFile, "<?php\n\nuse Illuminate\Support\Facades\Route;\n\n");
+        }
+
+        $routeContent = file_get_contents($routeFile);
+
+        $routeDefinition = "\nRoute::apiResource('" . Str::plural(Str::snake($model)) . "', App\Http\Controllers\\{$model}Controller::class);\n";
+
+        if (!str_contains($routeContent, $routeDefinition)) {
+            file_put_contents($routeFile, $routeContent . $routeDefinition);
+            $this->info("✅ Route added: /api/" . Str::plural(Str::snake($model)));
+        } else {
+            $this->warn("⚠️ Route already exists.");
+        }
     }
+
 
     private function runMigration()
     {
