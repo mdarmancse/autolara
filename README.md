@@ -12,7 +12,7 @@ AutoLara is a Laravel package that automatically generates CRUD operations, incl
 
 Run the following command to install AutoLara:
 ```sh
-composer require mdarmancse/autolara --dev
+composer require mdarmancse/autolara
 ```
 
 ## Usage
