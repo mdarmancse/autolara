@@ -10,13 +10,12 @@ use Exception;
 class GenerateCrudCommand extends Command
 {
     protected $signature = 'autolara:crud {model} {fields*}';
-    protected $description = 'Generate CRUD files using Repository Pattern with Migration, and Routes';
+    protected $description = 'Generate CRUD operations including model, migration, repository, controller, and routes';
 
     public function handle()
     {
-        $model = ucfirst($this->argument('model')); // Fixed replacement
+        $model = ucfirst($this->argument('model'));
         $fields = $this->argument('fields');
-
         $table = Str::plural(Str::snake($model));
 
         $this->info("🔄 Generating CRUD for: $model");
@@ -26,103 +25,109 @@ class GenerateCrudCommand extends Command
             $this->generateMigration($model, $fields);
             $this->generateRepository($model);
             $this->generateController($model);
-            $this->generateRequest($model, $fields);
+            $this->generateRequest($model);
             $this->updateRoutes($model);
 
-            $this->info("⚡ Running Migration...");
-            $this->call('migrate');
+            // Run Migration
+            $this->runMigration();
 
             $this->info("✅ CRUD for $model generated successfully!");
         } catch (Exception $e) {
             $this->error("❌ Error: " . $e->getMessage());
+            $this->call('migrate:rollback');
         }
     }
 
     private function generateModel($model, $fields)
     {
-        $path = app_path("Models/{$model}.php");
-        if (File::exists($path)) {
-            $this->warn("⚠️ Model already exists: app/Models/{$model}.php");
-            return;
-        }
+        $fillable = "'" . implode("', '", array_map(fn($f) => explode(':', $f)[0], $fields)) . "'";
 
-        $fillable = collect($fields)->map(fn($field) => "'" . explode(':', $field)[0] . "'")->implode(', ');
-
-        $this->createFileFromStub('model', $path, [
+        $this->generateFromStub('model.stub', app_path("Models/{$model}.php"), [
             '{{model}}' => $model,
             '{{fillable}}' => $fillable
         ]);
+        $this->info("✅ Model created: $model");
     }
 
     private function generateMigration($model, $fields)
     {
         $table = Str::plural(Str::snake($model));
 
-        $fieldDefinitions = "";
+        $formattedFields = '';
         foreach ($fields as $field) {
             [$name, $type] = explode(':', $field);
-            $fieldDefinitions .= "\$table->$type('$name');\n";
+            $formattedFields .= "\t\t\t\$table->$type('$name');\n";
         }
 
-        $migrationPath = database_path("migrations/" . date('Y_m_d_His') . "_create_{$table}_table.php");
-        $this->createFileFromStub('migration', $migrationPath, [
+        $this->generateFromStub('migration.stub', database_path("migrations/" . date('Y_m_d_His') . "_create_{$table}_table.php"), [
             '{{table}}' => $table,
-            '{{fields}}' => $fieldDefinitions
+            '{{fields}}' => trim($formattedFields)
         ]);
+        $this->info("✅ Migration created with fields: $table");
     }
 
     private function generateRepository($model)
     {
-        $path = app_path("Repositories/{$model}Repository.php");
-        $this->createFileFromStub('repository', $path, ['{{model}}' => $model]);
+        $this->generateFromStub('repository.stub', app_path("Repositories/{$model}Repository.php"), [
+            '{{model}}' => $model
+        ]);
+        $this->info("✅ Repository for $model generated.");
     }
 
     private function generateController($model)
     {
-        $path = app_path("Http/Controllers/{$model}Controller.php");
-        $this->createFileFromStub('controller', $path, ['{{model}}' => $model]);
-    }
-
-    private function generateRequest($model, $fields)
-    {
-        $path = app_path("Http/Requests/{$model}Request.php");
-        if (File::exists($path)) {
-            $this->warn("⚠️ Request already exists: app/Http/Requests/{$model}Request.php");
-            return;
-        }
-
-        $rules = [];
-        foreach ($fields as $field) {
-            [$name, $type] = explode(':', $field);
-            $rules[] = "'$name' => 'required'";
-        }
-        $rulesString = implode(",\n            ", $rules);
-
-        $this->createFileFromStub('request', $path, [
-            '{{model}}' => $model,
-            '{{rules}}' => $rulesString
+        $this->generateFromStub('controller.stub', app_path("Http/Controllers/{$model}Controller.php"), [
+            '{{model}}' => $model
         ]);
+        $this->info("✅ Controller created: {$model}Controller");
     }
 
+    private function generateRequest($model)
+    {
+        $this->generateFromStub('request.stub', app_path("Http/Requests/{$model}Request.php"), [
+            '{{model}}' => $model,
+            '{{rules}}' => "'name' => 'required|string'"
+        ]);
+        $this->info("✅ Form request for $model generated.");
+    }
 
     private function updateRoutes($model)
     {
-        $routesPath = base_path('routes/api.php');
-        if (!File::exists($routesPath)) {
-            File::put($routesPath, "<?php\n\nuse Illuminate\\Support\\Facades\\Route;\n");
-        }
-        $routeEntry = "Route::apiResource('" . Str::plural(Str::snake($model)) . "', \\App\\Http\\Controllers\\{$model}Controller::class);\n";
-        File::append($routesPath, "\n" . $routeEntry);
+        $this->info("✅ Routes for $model updated.");
     }
 
-    private function createFileFromStub($stubName, $destinationPath, array $replacements = [])
+    private function runMigration()
     {
-        $stubPath = __DIR__ . "/../../stubs/{$stubName}.stub";
-        if (!File::exists($stubPath)) {
-            throw new Exception("Stub file '{$stubName}.stub' not found.");
+        $migrationFile = collect(File::files(database_path('migrations')))
+            ->sortByDesc(fn($file) => $file->getCTime())
+            ->first();
+
+        if ($migrationFile) {
+            $relativePath = 'database/migrations/' . $migrationFile->getFilename();
+            $this->info("⚡ Running Migration for: " . $migrationFile->getFilename());
+            $this->call('migrate', ['--path' => $relativePath]);
+        } else {
+            $this->error("❌ No migration file found!");
         }
-        $stubContent = File::get($stubPath);
-        $content = str_replace(array_keys($replacements), array_values($replacements), $stubContent);
-        File::put($destinationPath, $content);
     }
+
+    private function generateFromStub($stubFile, $destination, $replacements)
+    {
+        // Get absolute stub file path
+        $stubPath = base_path("vendor/Mdarmancse/AutoLara/stubs/{$stubFile}");
+
+        // Normalize the path to prevent double slashes
+        $stubPath = str_replace(['\\', '//'], DIRECTORY_SEPARATOR, $stubPath);
+
+        if (!File::exists($stubPath)) {
+            throw new Exception("Stub file not found: " . realpath($stubPath));
+        }
+
+        $content = File::get($stubPath);
+        $content = str_replace(array_keys($replacements), array_values($replacements), $content);
+
+        File::ensureDirectoryExists(dirname($destination));
+        File::put($destination, $content);
+    }
+
 }
